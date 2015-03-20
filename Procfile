@@ -1,1 +1,1 @@
-web: sh rq-dashboard
+web: gunicorn rq_dashboard.scripts.rq_dashboard:main
