@@ -1,1 +1,1 @@
-web: rq-dashboard
+web: sh rq-dashboard
