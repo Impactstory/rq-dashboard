@@ -1,6 +1,9 @@
 # Modules/blueprints
 from .dashboard import dashboard
+import os
 
+app.config['REDIS_DB'] = 3
+app.config['REDIS_URL'] = os.getenv("REDIS_URL")
 
 class RQDashboard(object):
     def __init__(self, app=None, url_prefix='/rq', auth_handler=None):
