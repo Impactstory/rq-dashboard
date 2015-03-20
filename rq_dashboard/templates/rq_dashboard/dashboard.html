@@ -187,7 +187,7 @@
 {% block inline_js %}
 var POLL_INTERVAL = {{ poll_interval }};
 var GROUP_WORKERS = {{ group_workers }};
-var BASE_URL = {{ base_url|tojson }};
+var BASE_URL = "{{ base_url }}";
 var HEROKU_WORKERS = {{heroku_workers|tojson }};
 {% include "rq_dashboard/dashboard.js" %}
 {% endblock %}
