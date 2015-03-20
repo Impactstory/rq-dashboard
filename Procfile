@@ -1,1 +1,1 @@
-web: gunicorn rq_dashboard.scripts.rq_dashboard:main
+web: gunicorn rq_dashboard.app:app
