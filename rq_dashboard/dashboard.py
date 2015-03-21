@@ -12,6 +12,7 @@ from rq.job import Job
 from rq.exceptions import InvalidJobOperationError
 from rq import cancel_job, requeue_job
 from rq import get_failed_queue
+from rq.registry import StartedJobRegistry
 from math import ceil
 import re
 from ast import literal_eval
@@ -136,13 +137,15 @@ def parse_job(job):
     data = json.loads(job.description)
     return {"name": data[0], "args": json.dumps(data[1])}
   except:
-    return {"name": "JSON parse error", "args": repr(job.description)}
+    return {"name": repr(job.description), "args": repr(job.description)}
 
   # data = pickle.loads(job.data)
   # try:
   #   return {"name": data[2][0], "args": json.dumps(data[2][1])}
   # except:
   #   return {"name": data[2][0], "args": unicode(data[2][1])}
+
+
 
 @dashboard.route('/', defaults={'queue_name': None, 'page': '1'})
 @dashboard.route('/<queue_name>', defaults={'page': '1'})
@@ -275,6 +278,20 @@ def compact_queue(queue_name):
 def list_queues():
     queues = serialize_queues(sorted(Queue.all()))
     return dict(queues=queues)
+
+@dashboard.route('/jobs/started/<queue_name>.json')
+@jsonify
+def list_started_jobs(queue_name):
+    registry = StartedJobRegistry(queue_name)
+    total_items = registry.count
+
+    queue = Queue(queue_name)    
+    jobs = [serialize_job(job) for job in queue.get_jobs()]
+
+    # jobs = [serialize_job(Job.fetch(job_id)) for job_id in registry.get_job_ids()]
+    print "hi heather"
+    print jobs
+    return dict(name=queue_name, jobs=jobs, pagination=[])
 
 @dashboard.route('/jobs/<queue_name>/<page>.json')
 @jsonify
