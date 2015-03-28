@@ -1,6 +1,8 @@
 from redis import Redis
 from redis import from_url
 from rq import push_connection
+from rq import Connection
+
 from functools import wraps
 import times
 from flask import Blueprint
@@ -15,6 +17,7 @@ from rq import get_failed_queue
 from rq.registry import StartedJobRegistry
 from math import ceil
 import re
+import os
 from ast import literal_eval
 import json
 import cPickle as pickle
@@ -25,6 +28,21 @@ dashboard = Blueprint('rq_dashboard', __name__,
         static_folder='static',
         )
 
+redis_rq_conn = from_url(
+        os.getenv('REDIS_URL', "redis://127.0.0.1:6379"), 
+        db=os.getenv('REDIS_RQ_DB', 4))
+
+# monkeypatch!!
+def get_current_connection_with_db():
+    """Returns the current Redis connection (i.e. the topmost on the
+    connection stack).
+    """
+    global redis_rq_conn
+    return from_url(os.getenv('REDIS_URL', "redis://127.0.0.1:6379"), 
+                    db=os.getenv('REDIS_RQ_DB', 4))
+import rq
+rq.connections.get_current_connection = get_current_connection_with_db                    
+    
 
 class RqTimeoutQueue(FailedQueue):
     def __init__(self, connection=None):
@@ -47,15 +65,13 @@ def authentication_hook():
 @dashboard.before_app_first_request
 def setup_rq_connection():
     # if current_app.config.get('REDIS_URL'):
-    #     redis_conn = from_url(current_app.config.get('REDIS_URL'), db=3)
+    #     redis_conn = from_url(current_app.config.get('REDIS_URL'), db=4)
     # else:
     #     redis_conn = Redis(host=current_app.config.get('REDIS_HOST', 'localhost'),
     #                    port=current_app.config.get('REDIS_PORT', 6379),
     #                    password=current_app.config.get('REDIS_PASSWORD', None),
     #                    db=current_app.config.get('REDIS_DB', 0))
-    import os
-    redis_conn = from_url(os.getenv('REDIS_URL'), db=3)        
-    push_connection(redis_conn)
+    push_connection(redis_rq_conn)
 
 
 def jsonify(f):
@@ -161,11 +177,13 @@ def overview(queue_name, page):
     else:
         queue = Queue(queue_name)
 
-    return render_template('rq_dashboard/dashboard.html',
-            workers=Worker.all(),
-            queue=queue,
-            page=page,
-            queues=Queue.all())
+    with Connection(redis_rq_conn):
+        response = render_template('rq_dashboard/dashboard.html',
+                workers=Worker.all(),
+                queue=queue,
+                page=page,
+                queues=Queue.all())
+    return response
 
 
 @dashboard.route('/job/<job_id>', methods=['GET'])
@@ -217,8 +235,9 @@ def requeue_job_view(job_id):
 @dashboard.route('/empty-all-queues', methods=['POST'])
 @jsonify
 def empty_all_queues():
-    for queue in Queue.all():
-        queue.empty()
+    with Connection(redis_rq_conn):
+        for queue in Queue.all():
+            queue.empty()
     return dict(status='OK')
 
 
@@ -276,7 +295,8 @@ def compact_queue(queue_name):
 @dashboard.route('/queues.json')
 @jsonify
 def list_queues():
-    queues = serialize_queues(sorted(Queue.all()))
+    with Connection(redis_rq_conn):
+        queues = serialize_queues(sorted(Queue.all()))
     return dict(queues=queues)
 
 @dashboard.route('/jobs/started/<queue_name>.json')
@@ -329,8 +349,9 @@ def list_workers():
     def serialize_queue_names(worker):
         return [q.name for q in worker.queues]
 
-    workers = [dict(name=worker.name, queues=serialize_queue_names(worker),
-        state=worker.state) for worker in Worker.all()]
+    with Connection(redis_rq_conn):
+        workers = [dict(name=worker.name, queues=serialize_queue_names(worker),
+            state=worker.state) for worker in Worker.all()]
     return dict(workers=workers)
 
 
