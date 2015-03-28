@@ -168,12 +168,13 @@ def parse_job(job):
 @dashboard.route('/<queue_name>/<page>')
 def overview(queue_name, page):
     if queue_name is None:
-        # Show the failed queue by default if it contains any jobs
-        failed = Queue('failed')
-        if not failed.is_empty():
-            queue = failed
-        else:
-            queue = Queue()
+        with Connection(redis_rq_conn):
+            # Show the failed queue by default if it contains any jobs
+            failed = Queue('failed')
+            if not failed.is_empty():
+                queue = failed
+            else:
+                queue = Queue()
     else:
         queue = Queue(queue_name)
 
@@ -244,7 +245,8 @@ def empty_all_queues():
 @dashboard.route('/queue/<queue_name>/empty', methods=['POST'])
 @jsonify
 def empty_queue(queue_name):
-    q = Queue(queue_name)
+    with Connection(redis_rq_conn):
+        q = Queue(queue_name)
     q.empty()
     return dict(status='OK')
 
@@ -273,7 +275,8 @@ def requeue_queue(queue_name):
 @jsonify
 @handled
 def cancel_all(queue_name):
-  queue = Queue(queue_name)
+  with Connection(redis_rq_conn):
+    queue = Queue(queue_name)
   count = 0
   for job_id in queue.get_job_ids():
     if Job.exists(job_id, queue.connection):
@@ -287,7 +290,8 @@ def cancel_all(queue_name):
 @jsonify
 @handled
 def compact_queue(queue_name):
-    q = Queue(queue_name)
+    with Connection(redis_rq_conn):    
+        q = Queue(queue_name)
     q.compact()
     return dict(status='OK')
 
@@ -299,25 +303,12 @@ def list_queues():
         queues = serialize_queues(sorted(Queue.all()))
     return dict(queues=queues)
 
-@dashboard.route('/jobs/started/<queue_name>.json')
-@jsonify
-def list_started_jobs(queue_name):
-    registry = StartedJobRegistry(queue_name)
-    total_items = registry.count
-
-    queue = Queue(queue_name)    
-    jobs = [serialize_job(job) for job in queue.get_jobs()]
-
-    # jobs = [serialize_job(Job.fetch(job_id)) for job_id in registry.get_job_ids()]
-    print "hi heather"
-    print jobs
-    return dict(name=queue_name, jobs=jobs, pagination=[])
-
 @dashboard.route('/jobs/<queue_name>/<page>.json')
 @jsonify
 def list_jobs(queue_name, page):
     current_page = int(page)
-    queue = Queue(queue_name)
+    with Connection(redis_rq_conn):
+        queue = Queue(queue_name)
     per_page = current_app.config.get('RQ_DASHBOARD_JOBS_PER_PAGE', 5)
     total_items = queue.count
     pages_numbers_in_window = pagination_window(total_items, current_page, per_page)
