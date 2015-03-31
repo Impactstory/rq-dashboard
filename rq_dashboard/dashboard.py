@@ -30,7 +30,7 @@ dashboard = Blueprint('rq_dashboard', __name__,
 
 redis_rq_conn = from_url(
         os.getenv('REDIS_URL', "redis://127.0.0.1:6379"), 
-        db=os.getenv('REDIS_RQ_DB', 4))
+        db=os.getenv('REDIS_RQ_DB', 14))
 
 # monkeypatch!!
 def get_current_connection_with_db():
@@ -39,7 +39,7 @@ def get_current_connection_with_db():
     """
     global redis_rq_conn
     return from_url(os.getenv('REDIS_URL', "redis://127.0.0.1:6379"), 
-                    db=os.getenv('REDIS_RQ_DB', 4))
+                    db=os.getenv('REDIS_RQ_DB', 14))
 import rq
 rq.connections.get_current_connection = get_current_connection_with_db                    
     
